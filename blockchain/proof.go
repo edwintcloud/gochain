@@ -10,17 +10,6 @@ import (
 	"math/big"
 )
 
-// Take the data from the block
-
-// create counter (nonce) which starts at 0
-
-// create a hash of the data plus the counter
-
-// check the hash to see if it meets a set of requirements
-
-// Requirements:
-// The First few bytes must contain 0s
-
 // Difficulty is the mining difficulty.
 const Difficulty = 18
 
