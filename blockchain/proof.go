@@ -114,7 +114,7 @@ func ToBytes(num int64) []byte {
 	// decode num into bytes
 	err := binary.Write(&buffer, binary.BigEndian, num)
 	if err != nil {
-		log.Fatalf("Unable to decode %d into bytes: %s", num, err.Error())
+		log.Panicf("Unable to decode %d into bytes: %s", num, err.Error())
 	}
 
 	// return bytes from buffer

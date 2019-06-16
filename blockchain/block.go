@@ -1,16 +1,17 @@
 package blockchain
 
+import (
+	"bytes"
+	"encoding/gob"
+	"log"
+)
+
 // Block represents a block in the blockchain.
 type Block struct {
 	Hash     []byte
 	Data     []byte
 	PrevHash []byte
 	Nonce    int
-}
-
-// BlockChain is the representation of our blockchain.
-type BlockChain struct {
-	Blocks []*Block
 }
 
 // CreateBlock creates a new block with a hash and returns a referrence
@@ -39,20 +40,37 @@ func CreateBlock(data string, prevHash []byte) *Block {
 	return &block
 }
 
-// AddBlock adds a block to the receiver BlockChain.
-func (bc *BlockChain) AddBlock(data string) {
+// Serialize serializes a block into a byte slice so it can be stored in the db.
+func (b *Block) Serialize() []byte {
+	var buffer bytes.Buffer
 
-	// get previous block
-	prevBlock := bc.Blocks[len(bc.Blocks)-1]
+	// create encoder on res bytes buffer
+	encoder := gob.NewEncoder(&buffer)
 
-	// create new block from data and prev block hash
-	newBlock := CreateBlock(data, prevBlock.Hash)
+	// use encoder to encode block into byte slice
+	err := encoder.Encode(b)
+	if err != nil {
+		log.Panicf("Unable to encode block structure into byte slice: %s", err.Error())
+	}
 
-	// append the new block to receiver blockchain
-	bc.Blocks = append(bc.Blocks, newBlock)
+	// return bytes from buffer
+	return buffer.Bytes()
 }
 
-// InitBlockChain initializes a new BlockChain with provided first element.
-func InitBlockChain(data string) *BlockChain {
-	return &BlockChain{[]*Block{CreateBlock(data, []byte{})}}
+// Deserialize deserializes a byte slice into a new Block and returns a
+// reference to the created Block.
+func Deserialize(data []byte) *Block {
+	var block Block
+
+	// create decoder on a bytes reader of the data byte slice
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+
+	// use decoder to decode bytes reader into created block
+	err := decoder.Decode(&block)
+	if err != nil {
+		log.Panicf("Unable to decode byte slice into a new Block struct: %s", err.Error())
+	}
+
+	// return reference to decoded block
+	return &block
 }
