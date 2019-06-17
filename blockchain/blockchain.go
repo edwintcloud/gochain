@@ -21,8 +21,9 @@ type Iterator struct {
 	DB          *badger.DB
 }
 
-// InitBlockChain initializes a new BlockChain with an initial Genesis block.
-func InitBlockChain() *BlockChain {
+// InitBlockChain initializes a new BlockChain with an initial Genesis block or
+// if the blockchain already exists, loads the prevHash.
+func InitBlockChain(address string) *BlockChain {
 	var prevHash []byte
 	dbPath := os.Getenv("DB_PATH")
 
@@ -47,8 +48,11 @@ func InitBlockChain() *BlockChain {
 			// blockchain was not found in db
 			fmt.Println("No existing blockchain found in database.")
 
+			// create Coinbase transaction with address
+			cbTx := CoinbaseTx(address, "Genesis Block")
+
 			// create Genesis block
-			genesis := CreateBlock("Genesis", []byte{})
+			genesis := CreateBlock([]*Transaction{cbTx}, []byte{})
 			fmt.Println("Genesis block created")
 
 			// put genesis in db with the hash as key
@@ -97,7 +101,7 @@ func InitBlockChain() *BlockChain {
 }
 
 // AddBlock adds a block to the receiver BlockChain.
-func (bc *BlockChain) AddBlock(data string) {
+func (bc *BlockChain) AddBlock(transactions []*Transaction) {
 	var prevHash []byte
 
 	// initiate read-only transaction on db to get previous hash from db
@@ -121,7 +125,7 @@ func (bc *BlockChain) AddBlock(data string) {
 	}
 
 	// create new block with previous hash and data
-	newBlock := CreateBlock(data, prevHash)
+	newBlock := CreateBlock(transactions, prevHash)
 
 	// initiate rw transaction on db to insert newBlock
 	err = bc.DB.Update(func(txn *badger.Txn) error {
