@@ -7,8 +7,8 @@ import (
 	"crypto/sha256"
 	"log"
 
-	"golang.org/x/crypto/ripemd160"
 	"github.com/btcsuite/btcutil/base58"
+	"golang.org/x/crypto/ripemd160"
 )
 
 const (

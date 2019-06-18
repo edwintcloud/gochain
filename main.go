@@ -3,9 +3,8 @@ package main
 import (
 	"os"
 
+	"github.com/edwintcloud/gochain/cli"
 	_ "github.com/joho/godotenv/autoload" // load .env
-	"github.com/edwintcloud/gochain/wallet"
-	"fmt"
 )
 
 // Initialize function which runs before main
@@ -23,13 +22,12 @@ func main() {
 	defer os.Exit(0)
 
 	// create new cli and run CLI
-	// cli := cli.CLI{}
-	// cli.Run()
+	cli := cli.CLI{}
+	cli.Run()
 
-	w := wallet.CreateWallet()
-	
+	// w := wallet.CreateWallet()
 
-	fmt.Printf("pub key: %x\n", w.PublicKey)
-	fmt.Printf("pub hash: %x\n", wallet.GeneratePublicKeyHash(w.PublicKey))
-	fmt.Printf("address: %s\n", w.Address())
+	// fmt.Printf("pub key: %x\n", w.PublicKey)
+	// fmt.Printf("pub hash: %x\n", wallet.GeneratePublicKeyHash(w.PublicKey))
+	// fmt.Printf("address: %s\n", w.Address())
 }
