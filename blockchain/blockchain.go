@@ -1,11 +1,13 @@
 package blockchain
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger"
 	"log"
 	"os"
+
+	"github.com/dgraph-io/badger"
 )
 
 // BlockChain is the representation of our blockchain.
@@ -193,4 +195,28 @@ func (iter *Iterator) Next() *Block {
 
 	// return reference to new block
 	return block
+}
+
+// FindTransaction finds a transaction in the Blockchain by ID.
+func (bc *BlockChain) FindTransaction(ID []byte) (Transaction, error) {
+	iter := bc.NewIterator()
+
+	// iterate over blocks
+	for {
+		block := iter.Next()
+
+		// iterate through transactions for current block
+		for _, tx := range block.Transactions {
+			if bytes.Compare(tx.ID, ID) == 0 {
+				return *tx, nil
+			}
+		}
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	// return empty transaction and error if transaction was not found
+	return Transaction{}, errors.New("transaction does not exist")
 }

@@ -6,14 +6,15 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"log"
+	"os"
+	"strconv"
 
 	"github.com/btcsuite/btcutil/base58"
 	"golang.org/x/crypto/ripemd160"
 )
 
 const (
-	checksumLen = 4
-	version     = byte(0x00)
+	version = byte(0x00)
 )
 
 // Wallet represents a token wallet for an address.
@@ -94,6 +95,10 @@ func GeneratePublicKeyHash(pubKey []byte) []byte {
 
 // GenerateChecksum generates a checksum for a public key hash.
 func GenerateChecksum(payload []byte) []byte {
+	checksumLen, err := strconv.Atoi(os.Getenv("CHECKSUM_LENGTH"))
+	if err != nil {
+		log.Panicln("Unable to convert env var CHECKSUM_LENGTH to int for method GenerateChecksum: ", err.Error())
+	}
 
 	// generate a sha256 hash from payload
 	hash := sha256.Sum256(payload)
