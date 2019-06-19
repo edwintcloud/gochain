@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -219,4 +221,163 @@ func (bc *BlockChain) FindTransaction(ID []byte) (Transaction, error) {
 
 	// return empty transaction and error if transaction was not found
 	return Transaction{}, errors.New("transaction does not exist")
+}
+
+// SignTransaction signs a blockchain Transaction.
+func (bc *BlockChain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	prevTXs := make(map[string]Transaction)
+
+	// iterate over TxInputs in Transaction and populate
+	// prevTXs
+	for _, in := range tx.Inputs {
+		prevTX, err := bc.FindTransaction(in.ID)
+		if err != nil {
+			log.Panicln("Unable to sign blockchain transaction: ", err.Error())
+		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	// sign Transaction using Transaction method
+	tx.Sign(privKey, prevTXs)
+}
+
+// VerifyTransaction verifies a Transaction on the blockchain.
+func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
+	prevTXs := make(map[string]Transaction)
+
+	// iterate over TxInputs in Transaction and populate
+	// prevTXs
+	for _, in := range tx.Inputs {
+		prevTX, err := bc.FindTransaction(in.ID)
+		if err != nil {
+			log.Panicln("Unable to verify blockchain transaction: ", err.Error())
+		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	// verify Transaction using Transaction method
+	// and return result
+	return tx.Verify(prevTXs)
+}
+
+// FindUnspentTransactions determines how many tokens an address has by
+// finding transactions that have outputs which are not referenced
+// by other inputs.
+func (bc *BlockChain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
+	var unspentTxs []Transaction
+	spentTxOutputs := make(map[string][]int)
+
+	iter := bc.NewIterator()
+
+	// iterate over blocks
+	for {
+		block := iter.Next()
+
+		// iterate over transactions for current block
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs: // a label to continue from
+			// iterate over outputs for current Transaction
+			for outIdx, out := range tx.Outputs {
+				// check if current output inside spentTxOutputs
+				if spentTxOutputs[txID] != nil {
+					for _, spentOut := range spentTxOutputs[txID] {
+						if spentOut == outIdx {
+							// current output is spent, continue
+							continue Outputs
+						}
+					}
+				}
+				// if transaction is unspent and can be unlocked by
+				// address, add it to unspentTxs
+				if out.IsLockedWithKey(pubKeyHash) {
+					unspentTxs = append(unspentTxs, *tx)
+				}
+			}
+			// LABEL END - Outputs
+
+			// if transaction is not coinbase tx, find other
+			// transactions that are referenced by inputs
+			// that can be unlocked by the address
+			if tx.IsCoinbase() == false {
+				// iterate over inputs
+				for _, in := range tx.Inputs {
+					if in.UsesKey(pubKeyHash) {
+						// if address can unlock the output referenced
+						// by the input, add the tx to spentTXOutputs
+						inTxID := hex.EncodeToString(in.ID)
+						spentTxOutputs[inTxID] = append(spentTxOutputs[inTxID], in.Out)
+					}
+				}
+			}
+		}
+
+		// break once PrevHash is empty (Genesis block has been reached)
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	// return unspent transactions
+	return unspentTxs
+}
+
+// FindUnspentTxOutputs finds all unspent transaction outputs that
+// correspond to an address.
+func (bc *BlockChain) FindUnspentTxOutputs(pubKeyHash []byte) []TxOutput {
+	var unspentTxOutputs []TxOutput
+
+	// get unspent transactions
+	unspentTxs := bc.FindUnspentTransactions(pubKeyHash)
+
+	// iterate over unspent transactions
+	for _, tx := range unspentTxs {
+		// iterate over outputs for current tx
+		for _, out := range tx.Outputs {
+			// if the output can be unlocked by the address,
+			// add it to unspentTxOutputs
+			if out.IsLockedWithKey(pubKeyHash) {
+				unspentTxOutputs = append(unspentTxOutputs, out)
+			}
+		}
+	}
+
+	// return unspent transaction outputs
+	return unspentTxOutputs
+}
+
+// FindSpendableOutputs ensures enough tokens exists in unspent transaction
+// outputs to cover the amount.
+func (bc *BlockChain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
+	spendableOutputs := make(map[string][]int)
+	unspentTxs := bc.FindUnspentTransactions(pubKeyHash)
+	accumulated := 0
+
+Work: // a label to continue from
+	// iterate over unspent transactions
+	for _, tx := range unspentTxs {
+		txID := hex.EncodeToString(tx.ID)
+
+		// iterate over outputs for current tx
+		for outIdx, out := range tx.Outputs {
+			// if output can be unlocked by address and accumulated is less
+			// than amount, increment accumulated by out value and add
+			// tx to spendableOutputs
+			if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
+				accumulated += out.Value
+				spendableOutputs[txID] = append(spendableOutputs[txID], outIdx)
+
+				// once accumulated reaches or exceeds the amount, we have found
+				// enough spendable outputs and can break
+				if accumulated >= amount {
+					break Work
+				}
+			}
+
+		}
+	}
+
+	// return accumulated amount and spendable outputs
+	return accumulated, spendableOutputs
 }

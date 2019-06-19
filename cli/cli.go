@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/edwintcloud/gochain/blockchain"
 	"github.com/edwintcloud/gochain/wallet"
 )
@@ -127,17 +128,33 @@ func (cli *CLI) Run() {
 }
 
 func (cli *CLI) createBlockChain(address string) {
+	if !wallet.ValidateAddress(address) {
+		log.Panicln("Unable to create blockchain: address not valid")
+	}
 	bc := blockchain.InitBlockChain(address)
 	bc.DB.Close()
 	fmt.Println("Finished!")
 }
 
 func (cli *CLI) getBalance(address string) {
+	if !wallet.ValidateAddress(address) {
+		log.Panicln("Unable to get balance: address not valid")
+	}
 	bc := blockchain.InitBlockChain(address)
 	defer bc.DB.Close()
 
 	balance := 0
-	unspentTxOutputs := bc.FindUnspentTxOutputs(address)
+
+	checksumLen, err := strconv.Atoi(os.Getenv("CHECKSUM_LENGTH"))
+	if err != nil {
+		log.Panicln("Unable to convert env var CHECKSUM_LENGTH to int for method (TxOutput) Lock: ", err.Error())
+	}
+
+	// decode address from base58 back to sha256 hash
+	pubKeyHash := base58.Decode(string(address[:]))
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-checksumLen]
+
+	unspentTxOutputs := bc.FindUnspentTxOutputs(pubKeyHash)
 
 	for _, out := range unspentTxOutputs {
 		balance += out.Value
@@ -147,6 +164,12 @@ func (cli *CLI) getBalance(address string) {
 }
 
 func (cli *CLI) send(from, to string, amount int) {
+	if !wallet.ValidateAddress(to) {
+		log.Panicln("Unable to initiate send transaction: to address not valid")
+	}
+	if !wallet.ValidateAddress(from) {
+		log.Panicln("Unable to initiate send transaction: from address not valid")
+	}
 	bc := blockchain.InitBlockChain(from)
 	defer bc.DB.Close()
 
@@ -171,6 +194,10 @@ func (cli *CLI) printBlocks() {
 
 		pow := blockchain.NewProof(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
+
+		for _, tx := range block.Transactions {
+			fmt.Println(tx)
+		}
 
 		// break once PrevHash is empty (Genesis block has been reached)
 		if len(block.PrevHash) == 0 {

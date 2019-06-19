@@ -65,3 +65,11 @@ func (out *TxOutput) Lock(address []byte) {
 func (out *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
 }
+
+// NewTXOutput creates a new output Transaction.
+func NewTXOutput(value int, address string) *TxOutput {
+	txOut := &TxOutput{value, nil}
+	txOut.Lock([]byte(address))
+
+	return txOut
+}

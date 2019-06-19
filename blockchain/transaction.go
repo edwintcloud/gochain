@@ -12,6 +12,8 @@ import (
 	"log"
 	"math/big"
 	"strings"
+
+	"github.com/edwintcloud/gochain/wallet"
 )
 
 // Transaction represents a blockchain transaction.
@@ -85,18 +87,19 @@ func CoinbaseTx(to, data string) *Transaction {
 
 	// create transaction structures
 	txIn := TxInput{
-		ID:  []byte{},
-		Out: -1,
-		Sig: data,
+		ID:        []byte{},
+		Out:       -1,
+		Signature: nil,
+		PubKey:    []byte(data),
 	}
-	txOut := TxOutput{
-		Value:  100,
-		PubKey: to,
-	}
+	txOut := NewTXOutput(
+		100,
+		to,
+	)
 	tx := Transaction{
 		ID:      nil,
 		Inputs:  []TxInput{txIn},
-		Outputs: []TxOutput{txOut},
+		Outputs: []TxOutput{*txOut},
 	}
 
 	// generate hash id for transaction
@@ -111,8 +114,16 @@ func (bc *BlockChain) NewTransaction(from, to string, amount int) *Transaction {
 	var txInputs []TxInput
 	var txOutputs []TxOutput
 
+	// create wallets and generate public key for from addressed wallet
+	wallets, err := wallet.CreateWallets()
+	if err != nil {
+		log.Panicln("Unable to load wallets while creating new blockchain transaction: ", err.Error())
+	}
+	w := wallets[from]
+	pubKeyHash := wallet.GeneratePublicKeyHash(w.PublicKey)
+
 	// find spendable outputs for address and amount
-	acc, spendableOutputs := bc.FindSpendableOutputs(from, amount)
+	acc, spendableOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
 
 	// quit program if not enough funds to cover amount
 	if acc < amount {
@@ -130,25 +141,26 @@ func (bc *BlockChain) NewTransaction(from, to string, amount int) *Transaction {
 		for _, out := range outs {
 			// add a TxInput to txInputs for from address
 			txInputs = append(txInputs, TxInput{
-				ID:  txID,
-				Out: out,
-				Sig: from,
+				ID:        txID,
+				Out:       out,
+				Signature: nil,
+				PubKey:    w.PublicKey,
 			})
 		}
 	}
 
 	// add a TxOutput to txOutputs for to address
-	txOutputs = append(txOutputs, TxOutput{
-		Value:  acc - amount,
-		PubKey: to,
-	})
+	txOutputs = append(txOutputs, *NewTXOutput(
+		amount,
+		to,
+	))
 
 	// credit excess back to sender
 	if acc > amount {
-		txOutputs = append(txOutputs, TxOutput{
-			Value:  acc - amount,
-			PubKey: from,
-		})
+		txOutputs = append(txOutputs, *NewTXOutput(
+			acc-amount,
+			to,
+		))
 	}
 
 	// create transaction with txInputs and txOutputs
@@ -158,8 +170,9 @@ func (bc *BlockChain) NewTransaction(from, to string, amount int) *Transaction {
 		Outputs: txOutputs,
 	}
 
-	// generate hash id for transaction
-	tx.SetID()
+	// generate hash and sign transaction
+	tx.ID = tx.GenerateHash()
+	bc.SignTransaction(&tx, w.PrivateKey)
 
 	// return a reference to the transaction
 	return &tx
@@ -293,9 +306,9 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 }
 
 // ToString returns a string representation of a Transaction.
-func (tx *Transaction) ToString() string {
+func (tx *Transaction) String() string {
 	result := []string{
-		fmt.Sprintf("--- Transaction %s:", tx.ID),
+		fmt.Sprintf("--- Transaction %x:", tx.ID),
 	}
 
 	// iterate over inputs

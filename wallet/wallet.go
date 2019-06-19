@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -108,4 +109,22 @@ func GenerateChecksum(payload []byte) []byte {
 
 	// return checksum of checksumLen bytes
 	return rehash[:checksumLen]
+}
+
+// ValidateAddress validates a wallet address.
+func ValidateAddress(address string) bool {
+	checksumLen, err := strconv.Atoi(os.Getenv("CHECKSUM_LENGTH"))
+	if err != nil {
+		log.Panicln("Unable to convert env var CHECKSUM_LENGTH to int for method (TxOutput) Lock: ", err.Error())
+	}
+
+	// decode address from base58 back to sha256 hash
+	pubKeyHash := base58.Decode(address)
+
+	actualChecksum := pubKeyHash[len(pubKeyHash)-checksumLen:]
+	version := pubKeyHash[0]
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-checksumLen]
+	targetChecksum := GenerateChecksum(append([]byte{version}, pubKeyHash...))
+
+	return bytes.Compare(actualChecksum, targetChecksum) == 0
 }
