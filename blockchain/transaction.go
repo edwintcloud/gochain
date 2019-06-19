@@ -159,7 +159,7 @@ func (bc *BlockChain) NewTransaction(from, to string, amount int) *Transaction {
 	if acc > amount {
 		txOutputs = append(txOutputs, *NewTXOutput(
 			acc-amount,
-			to,
+			from,
 		))
 	}
 
